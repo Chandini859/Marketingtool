@@ -1,12 +1,11 @@
 import CloseIcon from "@mui/icons-material/Close";
-import { Box, Button, Typography } from "@mui/material";
+import { Box, Button, MenuItem, Typography } from "@mui/material";
 import Grid from "@mui/material/Grid";
 import IconButton from "@mui/material/IconButton";
 import TextField from "@mui/material/TextField";
 import axios from "axios";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import Swal from "sweetalert2";
-import { useAppStore } from "../../../appStore";
 
 export default function AddCustomer({ closeEvent }) {
   const [customerName, setCustomerName] = useState("");
@@ -14,8 +13,12 @@ export default function AddCustomer({ closeEvent }) {
   const [mobileNumber, setMobileNumber] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [address, setAddress] = useState("");
-  const [subcategory, setSubcategory] = useState("");
-  const setRows = useAppStore((state) => state.setRows);
+  const [formData, setFormData] = useState({
+    categoryId: "", 
+    subcategoryId: "", 
+  });
+  const [categories, setCategories] = useState([]);
+  const [subcategories, setSubcategories] = useState([]);
 
   const handleCustomerNameChange = (event) => {
     setCustomerName(event.target.value);
@@ -37,8 +40,36 @@ export default function AddCustomer({ closeEvent }) {
     setAddress(event.target.value);
   };
 
+  const handleCategoryChange = (event) => {
+    const { value } = event.target;
+    setFormData((prevData) => ({
+      ...prevData,
+      categoryId: value,
+      subcategoryId: '', // Reset subcategoryId when a new category is selected
+    }));
+
+    // Fetch subcategories based on the selected category
+    axios
+      .get(`http://localhost:8080/subcategory`)
+      .then((res) => {
+        setSubcategories(res.data);
+        // setSubCategoryCustomers([]); // If these were declared as states, you can reset them here
+        // setSelectedCustomers([]); // If these were declared as states, you can reset them here
+      })
+      .catch((error) => {
+        console.error(error);
+        setSubcategories([]);
+        // setSubCategoryCustomers([]); // If these were declared as states, you can reset them here
+        // setSelectedCustomers([]); // If these were declared as states, you can reset them here
+      });
+  };
+
   const handleSubcategoryChange = (event) => {
-    setSubcategory(event.target.value);
+    const { value } = event.target;
+    setFormData((prevData) => ({
+      ...prevData,
+      subcategoryId: value, // Update subcategoryId in formData
+    }));
   };
 
   const createUser = () => {
@@ -48,13 +79,13 @@ export default function AddCustomer({ closeEvent }) {
       mobileNumber,
       phoneNumber,
       address,
-      categoryId: "2", // Replace with the desired categoryId
-      subcategoryId: "1", // Replace with the desired subcategoryId
+      categoryId: formData.categoryId, // Use the selected categoryId from formData
+      subcategoryId: formData.subcategoryId, // Use the selected subcategoryId from formData
       categoryMaster: {
-        categoryId: "2", // Replace with the desired categoryId
+        categoryId: formData.categoryId, // Use the selected categoryId from formData
       },
       subcategory: {
-        subcategoryId: "1", // Replace with the desired subcategoryId
+        subcategoryId: formData.subcategoryId, // Use the selected subcategoryId from formData
       },
     };
 
@@ -63,16 +94,28 @@ export default function AddCustomer({ closeEvent }) {
       .then((res) => {
         closeEvent();
         Swal.fire("Submitted!", "Your file has been submitted.", "success");
-        setRows((prevRows) => {
-          const rows = Array.isArray(prevRows) ? prevRows : [];
-          return [...rows, res.data];
-        });
+        // setRows((prevRows) => {
+        //   const rows = Array.isArray(prevRows) ? prevRows : [];
+        //   return [...rows, res.data];
+        // });
       })
       .catch((error) => {
         console.error(error);
         Swal.fire("Error!", "Failed to submit the details.", "error");
       });
   };
+
+  useEffect(() => {
+    // Fetch categories on component mount
+    axios
+      .get("http://localhost:8080/categories")
+      .then((res) => {
+        setCategories(res.data);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+  }, []);
 
   return (
     <>
@@ -91,7 +134,7 @@ export default function AddCustomer({ closeEvent }) {
         <Grid item xs={12}>
           <TextField
             id="customerName"
-            label="Name"
+            label="Customer Name"
             variant="outlined"
             size="small"
             value={customerName}
@@ -101,7 +144,7 @@ export default function AddCustomer({ closeEvent }) {
         </Grid>
         <Grid item xs={12}>
           <TextField
-            id="phoneNumber"
+            id="organization"
             label="Organization"
             variant="outlined"
             size="small"
@@ -113,7 +156,7 @@ export default function AddCustomer({ closeEvent }) {
         <Grid item xs={12}>
           <TextField
             id="address"
-            label="Email"
+            label="Address"
             variant="outlined"
             size="small"
             value={address}
@@ -145,14 +188,44 @@ export default function AddCustomer({ closeEvent }) {
         </Grid>
         <Grid item xs={12}>
           <TextField
-            id="subcategory"
-            label="Subcategory"
+            id="categoryId"
+            label="Category Name"
             variant="outlined"
             size="small"
-            value={subcategory}
+            value={formData.categoryId}
+            onChange={handleCategoryChange}
+            sx={{ mb: 1, fontSize: "1rem" }}
+            fullWidth
+            select
+          >
+            {categories.map((category) => (
+              <MenuItem key={category.categoryId} value={category.categoryId}>
+                {category.categoryName}
+              </MenuItem>
+            ))}
+          </TextField>
+        </Grid>
+        <Grid item xs={12}>
+          <TextField
+            id="subcategoryId"
+            label="Subcategory Name"
+            variant="outlined"
+            size="small"
+            value={formData.subcategoryId}
             onChange={handleSubcategoryChange}
-            sx={{ minWidth: "100%" }}
-          />
+            sx={{ mb: 1, fontSize: "1rem" }}
+            fullWidth
+            select
+          >
+            {subcategories.map((subcategory) => (
+              <MenuItem
+                key={subcategory.subcategoryId}
+                value={subcategory.subcategoryId}
+              >
+                {subcategory.subcategoryName}
+              </MenuItem>
+            ))}
+          </TextField>
         </Grid>
         <Grid item xs={12}>
           <Typography variant="h5" align="center">

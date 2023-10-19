@@ -10,7 +10,7 @@ import {
   Typography
 } from '@mui/material';
 import axios from 'axios';
-import { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 const columns = [
   { id: 'SlNo', label: 'SlNo', minWidth: 170 },
@@ -19,17 +19,15 @@ const columns = [
   { id: 'No.of Participants', label: 'No. of Participants', minWidth: 100 },
 ];
 
-export default function EmailReport() {
+export default function TeamLeaderEmailReport() {
   const [data, setData] = useState([]);
-  const [getLength, setLength] = useState();
 
   useEffect(() => {
     axios
-      .get('http://localhost:8080/Email')
+      .get(`http://localhost:8080/Email/reports/5`)
       .then(res => {
         setData(res.data);
         console.log("result ", res.data);
-        
       })
       .catch(err => console.log(err));
   }, []);
@@ -54,7 +52,7 @@ export default function EmailReport() {
           <TableBody>
             {data.map((row, index) => (
               <TableRow hover role="checkbox" tabIndex={-1} key={index}>
-                <TableCell align="left">{index + 1}</TableCell> {/* Incremental count */}
+                <TableCell align="left">{index + 1}</TableCell>
                 {columns.slice(1).map(column => {
                   const value = row[column.id];
                   return (
@@ -64,9 +62,11 @@ export default function EmailReport() {
                   );
                 })}
                 <TableCell align="left">
-                  <Link href={`/participants/${row.id}`} underline="hover">
-                    {row.emailStatusesSet.length}
-                  </Link>
+                  {row.emailStatusesSet && (
+                    <Link href={`/participants/${row.id}`} underline="hover">
+                      {row.emailStatusesSet.length}
+                    </Link>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

@@ -1,4 +1,4 @@
-import { Box, Button, Dialog, DialogActions, DialogContent, DialogTitle, MenuItem, TextField, Typography } from '@mui/material';
+import { Box, Button, Checkbox, FormControlLabel, FormGroup, MenuItem, TextField, Typography } from '@mui/material';
 import axios from 'axios';
 import React, { useEffect, useState } from 'react';
 import Swal from 'sweetalert2';
@@ -9,28 +9,21 @@ const SendingEmail = ({ closeEvent }) => {
     cc: '',
     subject: '',
     body: '',
+    senderId: '',
     files: [],
     categoryId: '',
-    customer: '',
-    option1: false,
-    option2: false,
-    option3: false,
+    subcategoryId: '',
   });
 
   const [categories, setCategories] = useState([]);
-  const [customers, setCustomers] = useState([]);
+  const [subcategories, setSubcategories] = useState([]);
+  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
+  const [subCategoryCustomers, setSubCategoryCustomers] = useState([]);
+  const [selectedCustomers, setSelectedCustomers] = useState([]);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prevData) => ({ ...prevData, [name]: value }));
-  };
-
-  const handleCheckboxChange = (e) => {
-    const { name, checked } = e.target;
-    setFormData((prevData) => ({
-      ...prevData,
-      [name]: checked,
-    }));
   };
 
   const handleFileChange = (e) => {
@@ -45,8 +38,6 @@ const SendingEmail = ({ closeEvent }) => {
     });
   };
 
-  const [isPreviewModalOpen, setIsPreviewModalOpen] = useState(false);
-
   const handlePreview = () => {
     setIsPreviewModalOpen(true);
   };
@@ -57,14 +48,18 @@ const SendingEmail = ({ closeEvent }) => {
 
   const handleSubmit = async () => {
     const formDataToSend = new FormData();
-    formDataToSend.append('to', formData.to);
+    formDataToSend.append('to', selectedCustomers.join(', '));
     formDataToSend.append('cc', formData.cc);
     formDataToSend.append('subject', formData.subject);
     formDataToSend.append('body', formData.body);
+    formDataToSend.append('senderId', formData.senderId);
 
     Object.keys(formData.files).forEach((singleKey) => {
       formDataToSend.append(`file`, formData.files[singleKey]);
     });
+
+    // Append selected customer IDs to the formDataToSend
+    formDataToSend.append('customers', JSON.stringify(selectedCustomers));
 
     try {
       Swal.fire({
@@ -77,7 +72,7 @@ const SendingEmail = ({ closeEvent }) => {
         },
       });
 
-      const response = await axios.post('http://localhost:8080/mail/send', formDataToSend);
+      const response = await axios.post('http://localhost:8080/Email/send', formDataToSend);
 
       Swal.fire({
         icon: 'success',
@@ -98,6 +93,7 @@ const SendingEmail = ({ closeEvent }) => {
   };
 
   useEffect(() => {
+    // Fetch categories on component mount
     axios
       .get('http://localhost:8080/categories')
       .then((res) => {
@@ -108,32 +104,66 @@ const SendingEmail = ({ closeEvent }) => {
       });
   }, []);
 
-  useEffect(() => {
-    axios
-      .get('http://localhost:8080/customers')
-      .then((res) => {
-        setCustomers(res.data);
-      })
-      .catch((error) => {
-        console.error(error);
-      });
-  }, []);
-
   const handleCategoryChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prevData) => ({
-      ...prevData,
-      categoryId: value,
-      customer: '', // Reset customer selection when category changes
-    }));
-  };
-
-  const handleCustomerChange = (e) => {
     const { value } = e.target;
     setFormData((prevData) => ({
       ...prevData,
-      customer: value,
+      categoryId: value,
+      subcategoryId: '', // Reset subcategoryId when a new category is selected
     }));
+
+    // Fetch subcategories based on the selected category
+    axios
+      .get(`http://localhost:8080/subcategory`)
+      .then((res) => {
+        setSubcategories(res.data);
+        setSubCategoryCustomers([]);
+        setSelectedCustomers([]); // Reset selected customers when a new category is selected
+      })
+      .catch((error) => {
+        console.error(error);
+        setSubcategories([]);
+        setSubCategoryCustomers([]);
+        setSelectedCustomers([]);
+      });
+  };
+
+  const handleSubcategoryChange = (e) => {
+    const { value } = e.target;
+    setFormData((prevData) => ({
+      ...prevData,
+      subcategoryId: value, // Update subcategoryId in formData
+    }));
+
+    // Fetch customers based on the selected subcategory
+    axios
+      .get(`http://localhost:8080/customers/customers/${value}`)
+      .then((res) => {
+        setSubCategoryCustomers(res.data);
+        setSelectedCustomers([]); // Reset selected customers when a new subcategory is selected
+      })
+      .catch((error) => {
+        console.error(error);
+        setSubCategoryCustomers([]);
+      });
+  };
+
+  const handleCustomerCheckboxChange = (customerId) => (event) => {
+    const { checked } = event.target;
+    setSelectedCustomers((prevSelected) =>
+      checked
+        ? [...prevSelected, customerId]
+        : prevSelected.filter((id) => id !== customerId)
+    );
+  };
+
+  const handleSelectAllCustomers = (event) => {
+    const { checked } = event.target;
+    if (checked) {
+      setSelectedCustomers(subCategoryCustomers.map((customer) => customer.customerId));
+    } else {
+      setSelectedCustomers([]);
+    }
   };
 
   return (
@@ -149,6 +179,7 @@ const SendingEmail = ({ closeEvent }) => {
         sx={{ mb: 1, fontSize: '1rem' }}
         fullWidth
       />
+
       <TextField
         id="categoryId"
         label="Category Name"
@@ -168,28 +199,62 @@ const SendingEmail = ({ closeEvent }) => {
       </TextField>
 
       <TextField
-        name="customer" // <-- Match the name with the field in the state
-        label="Customers"
-        value={formData.customer}
-        onChange={handleCustomerChange} // <-- Use the correct handleChange function
+        id="subcategoryId"
+        label="Subcategory Name"
+        variant="outlined"
+        size="small"
+        value={formData.subcategoryId}
+        onChange={handleSubcategoryChange}
         sx={{ mb: 1, fontSize: '1rem' }}
         fullWidth
         select
       >
-        {customers.map((customer) => (
-          <MenuItem key={customer.customerId} value={customer.customerId}>
-            {customer.customerId} - {customer.customerName}
+        {subcategories.map((subcategory) => (
+          <MenuItem key={subcategory.subcategoryId} value={subcategory.subcategoryId}>
+            {subcategory.subcategoryName}
           </MenuItem>
         ))}
       </TextField>
-      <TextField
-        name="to"
-        label="To"
-        value={formData.to}
+
+      {subCategoryCustomers.length > 0 && (
+        <Box sx={{ mt: 2, maxHeight: '200px', overflowY: 'auto' }}>
+          <Typography variant="body1">
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={selectedCustomers.length === subCategoryCustomers.length}
+                  onChange={handleSelectAllCustomers}
+                />
+              }
+              label="Select All"
+            />
+          </Typography>
+          <FormGroup>
+            {subCategoryCustomers.map((customer) => (
+              <FormControlLabel
+                key={customer.customerId}
+                control={
+                  <Checkbox
+                    value={customer.customerId}
+                    checked={selectedCustomers.includes(customer.customerId)}
+                    onChange={handleCustomerCheckboxChange(customer.customerId)}
+                  />
+                }
+                label={`${customer.customerName}`}
+              />
+            ))}
+          </FormGroup>
+        </Box>
+      )}
+
+      {/* <TextField
+        name="senderId"
+        label="SenderId"
+        value={formData.senderId}
         onChange={handleInputChange}
         sx={{ mb: 1, fontSize: '1rem' }}
         fullWidth
-      />
+      />  */}
       <TextField
         name="cc"
         label="CC"
@@ -234,27 +299,47 @@ const SendingEmail = ({ closeEvent }) => {
         Submit
       </Button>
 
-      {/* Preview Modal */}
-      <Dialog open={isPreviewModalOpen} onClose={handleClosePreviewModal}>
-        <DialogTitle>Email Preview</DialogTitle>
-        <DialogContent>
-          <Typography variant="subtitle1">To: {formData.to}</Typography>
-          <Typography variant="subtitle1">CC: {formData.cc}</Typography>
-          <Typography variant="subtitle1">Subject: {formData.subject}</Typography>
-          <Typography variant="body1">Body: {formData.body}</Typography>
-          {formData.files.length > 0 &&
-            formData.files.map((file, index) => (
-              <div key={index}>
-                Selected File {index + 1}: {file.name}
-              </div>
-            ))}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={handleClosePreviewModal} color="primary">
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
+       {/* Preview Modal */}
+       {isPreviewModalOpen && (
+        <Box sx={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 9999 }}>
+          <Box sx={{ backgroundColor: 'white', padding: '20px', maxWidth: '600px', width: '100%', borderRadius: '8px', zIndex: 10000 }}>
+            <Typography variant="h6" component="div" sx={{ mb: 2 }}>
+              Preview Email
+            </Typography>
+            {formData.cc && (
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                <strong>CC:</strong> {formData.cc}
+              </Typography>
+            )}
+            {formData.subject && (
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                <strong>Title:</strong> {formData.subject}
+              </Typography>
+            )}
+            {formData.body && (
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                <strong>Body:</strong> {formData.body}
+              </Typography>
+            )}
+            <Typography variant="body1" sx={{ mb: 2 }}>
+              <strong>Customers Count:</strong> {selectedCustomers.length}
+            </Typography>
+            {formData.files.length > 0 && (
+              <Typography variant="body1" sx={{ mb: 2 }}>
+                <strong>Selected Files:</strong>
+                {formData.files.map((file, index) => (
+                  <div key={index}>
+                    {file.name}
+                  </div>
+                ))}
+              </Typography>
+            )}
+            <Button variant="contained" onClick={handleClosePreviewModal} sx={{ width: '100px', mt: 2 }}>
+              Close
+            </Button>
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 };

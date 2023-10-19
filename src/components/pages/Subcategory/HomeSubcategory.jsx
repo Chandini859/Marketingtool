@@ -51,6 +51,7 @@ export default function HomeSubcategory() {
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState(null);
+  const [subcategoryId, setSubcategoryId] = useState(null)
   const setRows = useAppStore((state) => state.setRows);
   const rows = useAppStore((state) => state.rows) || [];
 
@@ -68,8 +69,9 @@ export default function HomeSubcategory() {
       .get('http://localhost:8080/subcategory')
       .then((res) => {
         setOriginalRows(res.data);
+        setRows(res.data);
       })
-      .catch((err) => console.log(err));
+      .catch(err => console.log(err));
   };
 
   const handleDelete = (subcategoryId) => {
@@ -106,11 +108,11 @@ export default function HomeSubcategory() {
 
   const filterData = (v) => {
     setSelectedCategory(v);
-    if (v) {
-      const filteredRows = originalRows.filter((row) => row.subcategoryName === v.subcategoryName);
-      setOriginalRows(filteredRows);
-    } else {
+    if (!v) {
       setOriginalRows(rows);
+    } else {
+      const filteredRows = originalRows.filter((row) => row.categoryName === v.categoryName);
+      setOriginalRows(filteredRows);
     }
   };
 
@@ -119,14 +121,15 @@ export default function HomeSubcategory() {
     handleClose();
   };
 
-  const editData = (subcategoryId, subcategoryName, categoryName, description) => {
+  const editData = (subcategoryId, categoryName, subcategoryName, description) => {
     const data = {
       subcategoryId: subcategoryId,
-      subcategoryName: subcategoryName,
       categoryName: categoryName,
+      subcategoryName: subcategoryName,
       description: description,
     };
     setSelectedCategory(null);
+    setSubcategoryId(subcategoryId)
     handleEditOpen();
   };
 
@@ -150,7 +153,7 @@ export default function HomeSubcategory() {
           aria-describedby="modal-modal-description"
         >
           <Box sx={style}>
-            <UpdateSubcategory closeEvent={handleEditClose} />
+            <UpdateSubcategory subcategoryId={subcategoryId} closeEvent={handleEditClose} />
           </Box>
         </Modal>
       </div>
@@ -166,8 +169,8 @@ export default function HomeSubcategory() {
             value={selectedCategory}
             sx={{ width: 300 }}
             onChange={(e, v) => filterData(v)}
-            getOptionLabel={(row) => row.subcategoryName || ''}
-            renderInput={(params) => <TextField {...params} size="small" label="Search Subcategories" />}
+            getOptionLabel={(row) => row.categoryName || ''}
+            renderInput={(params) => <TextField {...params} size="small" label="Search Categories" />}
           />
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }} />
           <Button variant="contained" endIcon={<AddCircleIcon />} onClick={handleOpen}>
@@ -203,7 +206,7 @@ export default function HomeSubcategory() {
                         }}
                         className="cursor-pointer"
                         onClick={() =>
-                          editData(row.subcategoryId, row.subcategoryName, row.categoryName, row.description)
+                          editData(row.subcategoryId, row.categoryName, row.subcategoryName, row.description)
                         }
                       />
                     </TableCell>

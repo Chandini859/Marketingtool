@@ -19,7 +19,9 @@ import {
 import TablePagination from '@mui/material/TablePagination';
 import axios from 'axios';
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
+import { useAppStore } from '../../appStore';
 import AddCategory from './AddCategory';
 import UpdateCategory from './UpdateCategory';
 
@@ -50,8 +52,9 @@ export default function HomeCategory() {
   const [editOpen, setEditOpen] = useState(false);
   const [categoryId, setCategoryId] = useState('');
   const [inputData, setInputData] = useState({});
-  const [slNo, setSlNo] = useState(0);
-  const [rows, setRows] = useState([]); // Updated to use local state for rows
+  const navigate = useNavigate();
+  const setRows = useAppStore((state) => state.setRows);
+  const rows = useAppStore((state) => state.rows) || [];// Updated to use local state for rows
 
   const handleOpen = () => setOpen(true);
   const handleClose = () => setOpen(false);

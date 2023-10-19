@@ -5,7 +5,6 @@ import { Autocomplete, Box, Button, Modal, Paper, Table, TableBody, TableCell, T
 import TablePagination from '@mui/material/TablePagination';
 import axios from 'axios';
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import Swal from 'sweetalert2';
 import { useAppStore } from '../../../appStore';
 import AddCustomer from './AddCustomer';
@@ -29,10 +28,10 @@ const columns = [
   { id: 'mobileNumber', label: 'Mobile Number', minWidth: 100 },
   { id: 'phoneNumber', label: 'Phone Number', minWidth: 100 },
   { id: 'address', label: 'Email', minWidth: 100 },
+  { id: 'category', label: 'Category', minWidth: 100 },
   { id: 'subcategory', label: 'Subcategory', minWidth: 100 },
   { id: 'action', label: 'Action', minWidth: 100 },
-];
-
+]
 export default function HomeCustomer() {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(5);
@@ -40,10 +39,8 @@ export default function HomeCustomer() {
   const [open, setOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [customerId, setCustomerId] = useState(null);
-  const [inputData, setInputData] = useState({});
-  const [autocompleteOptions, setAutocompleteOptions] = useState([]);
-  const [serialNumber, setSerialNumber] = useState(1); // Start from 1
-  const navigate = useNavigate();
+  const [selectedCategory, setSelectedCategory] = useState(null);
+  const [selectedSubcategory, setSelectedSubcategory] = useState(null); // Initialize with appropriate initial value
   const setRows = useAppStore((state) => state.setRows);
   const rows = useAppStore((state) => state.rows) || [];
 
@@ -60,16 +57,10 @@ export default function HomeCustomer() {
     axios
       .get('http://localhost:8080/customers')
       .then((res) => {
-        // Use the response data to set serial numbers
-        const updatedRows = res.data.map((row, index) => ({
-          ...row,
-          serialNumber: index + 1, // Incremental serial number starting from 1
-        }));
-        setOriginalRows(updatedRows);
-        setRows(updatedRows);
-        setAutocompleteOptions(updatedRows.map((row) => row.customerName));
+        setOriginalRows(res.data);
+        setRows(res.data);
       })
-      .catch((err) => console.log(err));
+      .catch(err => console.log(err));
   };
 
   const handleDelete = (customerId) => {
@@ -105,11 +96,12 @@ export default function HomeCustomer() {
   };
 
   const filterData = (v) => {
-    if (v) {
-      const filteredRows = originalRows.filter((row) => row.customerName === v);
-      setRows(filteredRows);
+    setSelectedCategory(v);
+    if (!v) {
+      setOriginalRows(rows);
     } else {
-      setRows(originalRows);
+      const filteredRows = originalRows.filter((row) => row.customerName === v.customerName);
+      setOriginalRows(filteredRows);
     }
   };
 
@@ -118,18 +110,14 @@ export default function HomeCustomer() {
     handleClose();
   };
 
-  const editData = (customerId, customerName, mobileNumber, phoneNumber, address, subcategory, action) => {
-    const data = {
-      customerId: customerId,
-      customerName: customerName,
-      mobileNumber: mobileNumber,
-      phoneNumber: phoneNumber,
-      address: address,
-      subcategory: subcategory, // Keep the whole 'subcategory' object
-      action: action,
-    };
+  const editData = (customerId, customerName, mobileNumber, phoneNumber, address, category, subcategory, action) => {
+    // If 'subcategory' is provided, it should contain both 'categoryMaster' and 'subcategoryName'
+    const categoryData = subcategory ? subcategory.categoryMaster : null;
+    const subcategoryData = subcategory ? subcategory : null;
+  
     setCustomerId(customerId);
-    setInputData(data);
+    setSelectedCategory(categoryData);
+    setSelectedSubcategory(subcategoryData);
     handleEditOpen();
   };
 
@@ -153,7 +141,7 @@ export default function HomeCustomer() {
           aria-describedby="modal-modal-description"
         >
           <Box sx={style}>
-            <UpdateCustomer closeEvent={handleEditClose} customerId={customerId} inputData={inputData} setInputData={setInputData} />
+            <UpdateCustomer closeEvent={handleEditClose} customerId={customerId} selectedCategory={selectedCategory} selectedSubcategory={selectedSubcategory} />
           </Box>
         </Modal>
       </div>
@@ -165,7 +153,8 @@ export default function HomeCustomer() {
         <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', my: 2 }}>
           <Autocomplete
             id="combo-box-demo"
-            options={autocompleteOptions}
+            options={originalRows.map((row) => ({ customerName: row.customerName }))}
+            getOptionLabel={(option) => option.customerName}
             sx={{ width: 300 }}
             onChange={(e, v) => filterData(v)}
             renderInput={(params) => <TextField {...params} size="small" label="Search Customers" />}
@@ -190,18 +179,20 @@ export default function HomeCustomer() {
               </TableRow>
             </TableHead>
             <TableBody>
-              {Array.isArray(rows) &&
-                rows
+              {Array.isArray(originalRows) &&
+                originalRows
                   .slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage)
-                  .map((row) => (
+                  .map((row, index) => (
                     <TableRow hover role="checkbox" tabIndex={-1} key={row.customerId}>
-                      <TableCell align="left">{row.serialNumber}</TableCell>
+                      <TableCell align="left">{page * rowsPerPage + index + 1}</TableCell>
                       {columns.map((column) => {
                         const value = row[column.id];
                         return (
                           <TableCell key={column.id} align="left">
                             {column.id === 'subcategory' && row.subcategory
                               ? row.subcategory.subcategoryName
+                              : column.id === 'category' && row.subcategory && row.subcategory.categoryMaster
+                              ? row.subcategory.categoryMaster.categoryName
                               : value}
                           </TableCell>
                         );
@@ -221,8 +212,9 @@ export default function HomeCustomer() {
                               row.mobileNumber,
                               row.phoneNumber,
                               row.address,
+                              row.category,
                               row.subcategory,
-                              row.action
+                              
                             )
                           }
                         />
@@ -243,7 +235,7 @@ export default function HomeCustomer() {
         <TablePagination
           rowsPerPageOptions={[5, 10, 25]}
           component="div"
-          count={Array.isArray(rows) ? rows.length : 0}
+          count={Array.isArray(originalRows) ? originalRows.length : 0}
           rowsPerPage={rowsPerPage}
           page={page}
           onPageChange={handleChangePage}

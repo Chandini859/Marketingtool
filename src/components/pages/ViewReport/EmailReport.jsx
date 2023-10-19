@@ -3,6 +3,7 @@ import {
   Fade,
   Link,
   Modal,
+  Pagination,
   Paper,
   Table,
   TableBody,
@@ -10,13 +11,15 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Typography
+  Typography,
 } from '@mui/material';
-import { StyleSheet } from '@react-pdf/renderer';
 import axios from 'axios';
 import jsPDF from 'jspdf';
-import React, { useEffect, useState } from 'react';
-import { Button } from 'reactstrap';
+import 'jspdf-autotable';
+import React, { useEffect, useRef, useState } from 'react';
+import { CSVLink } from 'react-csv';
+import DataTable from 'react-data-table-component';
+import { MdCloudDownload } from 'react-icons/md';
 
 const columns = [
   { id: 'SlNo', label: 'SlNo', minWidth: 170 },
@@ -25,79 +28,87 @@ const columns = [
   { id: 'No.of Participants', label: 'No. of Participants', minWidth: 100 },
 ];
 
-const styles = StyleSheet.create({
-  // ... (existing styles)
-  modalTable: {
-    display: 'table',
-    width: '100%',
-    borderStyle: 'solid',
-    borderWidth: 1,
-  },
-  modalTableRow: {
-    flexDirection: 'row',
-  },
-  modalTableHeaderCell: {
-    backgroundColor: '#f0f0f0',
-    padding: 5,
-    fontWeight: 'bold',
-    borderStyle: 'solid',
-    borderWidth: 1,
-    borderColor: '#ccc',
-  },
-  modalTableCell: {
-    padding: 5,
-    borderStyle: 'solid',
-    borderWidth: 1,
-    borderColor: '#ccc',
-  },
-});
-
 export default function EmailReport() {
   const [data, setData] = useState([]);
   const [modalOpen, setModalOpen] = useState(false);
   const [modalData, setModalData] = useState(null);
-  const [modalDataCount, setModalDataCount] = useState([]);
+  const [fileData, setFileData] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 10;
 
   useEffect(() => {
     axios
-      .get('http://localhost:8080/Email')
-      .then(res => {
+      .get('http://localhost:8080/Email/reports')
+      .then((res) => {
         setData(res.data);
-        console.log("result ", res.data);
       })
-      .catch(err => console.log(err));
+      .catch((err) => console.log(err));
   }, []);
 
-  const handleOpenModal = (event, rowData) => {
-    event.preventDefault(); // Prevent default link navigation behavior
+  const handleOpenModal = async (rowData) => {
     setModalData(rowData);
-    setModalDataCount(rowData.emailStatusesSet);
     setModalOpen(true);
+
+    try {
+      const response = await axios.get(`http://localhost:8080/fileuploads/EmailMasterId/${rowData.emailId}`);
+      setFileData(response.data);
+    } catch (error) {
+      console.log(error);
+    }
   };
 
-  const pdfGenerate = () => {
-    var doc = new jsPDF('landscape', 'px', 'a4', false);
+  const handlePageChange = (event, newPage) => {
+    setCurrentPage(newPage);
+  };
 
-    // Add content to the PDF
-    doc.setFontSize(12);
-    doc.text('Email Statuses Count Data', 20, 20);
+  const generatePdfForModal = () => {
+    const doc = new jsPDF();
 
-    // Loop through modalDataCount and add its content to the PDF
-    let yOffset = 40; // Initial y-offset for content
-    modalDataCount.forEach((status, index) => {
-      doc.text(status.id, 20, yOffset);
-      doc.text(status.customerMaster.customerName, 120, yOffset);
-      doc.text(status.customerMaster.organization, 220, yOffset);
-      yOffset += 20; // Increase y-offset for the next row
+    doc.text('Modal Content PDF Report', 10, 10);
+
+    const pdfData = [
+      {
+        slNo: 1,
+        subject: modalData.subject,
+        categoryName: modalData.subcategory?.categoryMaster?.categoryName || 'N/A',
+        subcategoryName: modalData.subcategory?.subcategoryName || 'N/A',
+      },
+    ];
+
+    doc.autoTable({
+      head: [['Sl.No', 'Subject', 'Category Name', 'Subcategory Name']],
+      body: pdfData.map((row) => [row.slNo, row.subject, row.categoryName, row.subcategoryName]),
     });
 
-    // Save the PDF
-    doc.save('report.pdf');
+    doc.save('modal_content_report.pdf');
   };
+
+  const fetchAndOpenFile = async (fileId, emailMasterId, fileName) => {
+    try {
+      const response = await axios.get(`http://localhost:8080/fileuploads/file-path/${emailMasterId}/${fileId}`, {
+        responseType: 'blob',
+      });
+
+      const fileBlob = new Blob([response.data], { type: response.headers['content-type'] });
+
+      const fileURL = URL.createObjectURL(fileBlob);
+      const link = document.createElement('a');
+      link.href = fileURL;
+      link.download = fileName; 
+      link.click();
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  const ref = useRef();
+
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = Math.min(startIndex + itemsPerPage, data.length);
 
   return (
     <Paper sx={{ width: '100%', overflow: 'hidden' }}>
-      <Typography gutterBottom variant="h5" component="div" sx={{ padding: '20px' }}>
+      <Typography gutterBottom variant="h5" component="div" sx={{ padding: '20px', textAlign: 'center' }}>
         Email Report
       </Typography>
 
@@ -105,7 +116,7 @@ export default function EmailReport() {
         <Table stickyHeader aria-label="sticky table">
           <TableHead>
             <TableRow>
-              {columns.map(column => (
+              {columns.map((column) => (
                 <TableCell key={column.id} align="left" style={{ minWidth: column.minWidth }}>
                   {column.label}
                 </TableCell>
@@ -113,68 +124,137 @@ export default function EmailReport() {
             </TableRow>
           </TableHead>
           <TableBody>
-            {data.map((row, index) => (
-              <TableRow hover role="checkbox" tabIndex={-1} key={index}>
-                <TableCell align="left">{index + 1}</TableCell>
-                {columns.slice(1).map(column => {
-                  const value = row[column.id];
-                  return (
-                    <TableCell key={column.id} align="left">
-                      {column.format && typeof value === 'number' ? column.format(value) : value}
-                    </TableCell>
-                  );
-                })}
-                <TableCell align="left">
-                  <Link href="#" underline="hover" onClick={(event) => handleOpenModal(event, row)}>
-                    {row.emailStatusesSet.length}
-                  </Link>
-                </TableCell>
-              </TableRow>
-            ))}
+            {Array.isArray(data) &&
+              data.slice(startIndex, endIndex).map((row, index) => (
+                <TableRow hover role="checkbox" tabIndex={-1} key={index}>
+                  <TableCell align="left">{startIndex + index + 1}</TableCell>
+                  {columns.slice(1).map((column) => {
+                    const value = row[column.id];
+                    return (
+                      <TableCell key={column.id} align="left">
+                        {column.format && typeof value === 'number' ? column.format(value) : value}
+                      </TableCell>
+                    );
+                  })}
+                  <TableCell align="left">
+                    <Link href="#" underline="hover" onClick={() => handleOpenModal(row)}>
+                      {row.emailStatusesSet.length}
+                    </Link>
+                  </TableCell>
+                </TableRow>
+              ))}
           </TableBody>
         </Table>
       </TableContainer>
 
-      <Modal
-        open={modalOpen}
-        onClose={() => setModalOpen(false)}
-        closeAfterTransition
-        BackdropComponent={Backdrop}
-        BackdropProps={{
-          timeout: 500,
-        }}
-        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-      >
-        <Fade in={modalOpen}>
-          <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '5px', minWidth: '80%', maxWidth: '90%' }}>
-            {modalDataCount.length > 0 && (
-              <div>
-                <h2>Email Statuses Count Data</h2>
-                <div style={styles.modalTable}>
-                  <div style={styles.modalTableRow}>
-                    <div style={styles.modalTableHeaderCell}>Email Status ID</div>
-                    <div style={styles.modalTableHeaderCell}>Customer Name</div>
-                    <div style={styles.modalTableHeaderCell}>Organization</div>
-                    {/* Add more headers as needed */}
+      <Pagination
+        count={Math.ceil(data.length / itemsPerPage)}
+        page={currentPage}
+        onChange={handlePageChange}
+        sx={{ display: 'flex', justifyContent: 'center', marginTop: '20px' }}
+      />
+
+      {modalData && (
+        <Modal
+          open={modalOpen}
+          onClose={() => setModalOpen(false)}
+          closeAfterTransition
+          BackdropComponent={Backdrop}
+          BackdropProps={{
+            timeout: 500,
+          }}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            minWidth: '1000',
+            margin: '0 auto',
+          }}
+        >
+          <Fade in={modalOpen}>
+            <div
+              ref={ref}
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                backgroundColor: '#fff',
+                padding: '20px',
+                borderRadius: '5px',
+              }}
+            >
+              <h2>Modal Content</h2>
+              <p>Email Status: {modalData.emailStatusesSet.length}</p>
+              <p>Subject: {modalData.subject}</p>
+              <p>Sent Date: {modalData.sentDate}</p>
+
+              <DataTable
+                title="Modal Table"
+                columns={[
+                  { name: 'Sl.No', selector: 'slNo', sortable: true },
+                  { name: 'Subject', selector: 'subject', sortable: true },
+                  { name: 'Category Name', selector: 'categoryName', sortable: true },
+                  { name: 'Subcategory Name', selector: 'subcategoryName', sortable: true },
+                  {
+                    name: 'File',
+                    cell: (row) => (
+                      <div>
+                        {fileData && fileData.length > 0 ? (
+                          fileData.map((file) => (
+                            <div key={file.id}>
+                              <a href="#" onClick={() => fetchAndOpenFile(file.fileId, modalData.emailId, file.fileName)}>
+                                {file.fileName}
+                              </a>
+                            </div>
+                          ))
+                        ) : (
+                          'No File Available'
+                        )}
+                      </div>
+                    ),
+                  },
+                ]}
+                data={[
+                  {
+                    slNo: startIndex + 1,
+                    subject: modalData.subject,
+                    categoryName: modalData.subcategory?.categoryMaster?.categoryName || 'N/A',
+                    subcategoryName: modalData.subcategory?.subcategoryName || 'N/A',
+                  },
+                ]}
+                actions={
+                  <div>
+                    <CSVLink
+                      data={[
+                        {
+                          slNo: startIndex + 1,
+                          subject: modalData.subject,
+                          categoryName: modalData.subcategory?.categoryMaster?.categoryName || 'N/A',
+                          subcategoryName: modalData.subcategory?.subcategoryName || 'N/A',
+                        },
+                      ]}
+                      filename="modal_table_data.csv"
+                    >
+                      <MdCloudDownload />
+                    </CSVLink>
+                    <button onClick={() => {}}>
+                      <MdCloudDownload /> Excel
+                    </button>
+                    <button onClick={generatePdfForModal}>
+                      <MdCloudDownload /> PDF
+                    </button>
                   </div>
-                  {modalDataCount.map(status => (
-                    <div key={status.id} style={styles.modalTableRow}>
-                      <div style={styles.modalTableCell}>{status.id}</div>
-                      <div style={styles.modalTableCell}>{status.customerMaster.customerName}</div>
-                      <div style={styles.modalTableCell}>{status.customerMaster.organization}</div>
-                      {/* Add more cells as needed */}
-                    </div>
-                  ))}
-                </div>
-                {/* Add download options */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '20px' }}>
-                  <Button onClick={pdfGenerate}>Download PDF</Button>
-                </div>
+                }
+              />
+
+              <div>
+                <button onClick={() => setModalOpen(false)}>Close Modal</button>
               </div>
-            )}
-          </div>
-        </Fade>
-      </Modal>
+            </div>
+          </Fade>
+        </Modal>
+      )}
     </Paper>
   );
 }

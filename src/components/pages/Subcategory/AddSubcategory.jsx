@@ -11,7 +11,29 @@ export default function AddSubcategory({ closeEvent }) {
   const [categoryId, setCategoryId] = useState(null);
   const [description, setDescription] = useState('');
   const [categories, setCategories] = useState([]);
+  const [subcategories, setSubcategories] = useState([]);
   const setRows = useAppStore((state) => state.setRows);
+
+  useEffect(() => {
+    axios
+      .get('http://localhost:8080/categories')
+      .then((res) => {
+        setCategories(res.data);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+
+    axios
+      .get('http://localhost:8080/subcategory')
+      .then((res) => {
+        setSubcategories(res.data);
+      })
+      .catch((error) => {
+        console.error(error);
+        setSubcategories([]);
+      });
+  }, []);
 
   const handleSubcategoryNameChange = (event) => {
     setSubcategoryName(event.target.value);
@@ -25,7 +47,7 @@ export default function AddSubcategory({ closeEvent }) {
     setDescription(event.target.value);
   };
 
-  const createUser = () => {
+  const handleSubmit = () => {
     const inputData = {
       subcategoryName,
       categoryMaster: { categoryId },
@@ -47,17 +69,6 @@ export default function AddSubcategory({ closeEvent }) {
         Swal.fire('Error!', 'Failed to submit the details.', 'error');
       });
   };
-
-  useEffect(() => {
-    axios
-      .get('http://localhost:8080/categories')
-      .then((res) => {
-        setCategories(res.data);
-      })
-      .catch((error) => {
-        console.error(error);
-      });
-  }, []);
 
   return (
     <>
@@ -96,7 +107,8 @@ export default function AddSubcategory({ closeEvent }) {
             size="small"
             value={subcategoryName}
             onChange={handleSubcategoryNameChange}
-            sx={{ minWidth: '100%' }}
+            sx={{ mb: 1, fontSize: '1rem' }}
+            fullWidth
           />
         </Grid>
         <Grid item xs={12}>
@@ -112,7 +124,7 @@ export default function AddSubcategory({ closeEvent }) {
         </Grid>
         <Grid item xs={12}>
           <Typography variant="h5" align="center">
-            <Button variant="contained" onClick={createUser}>
+            <Button variant="contained" onClick={handleSubmit}>
               Submit
             </Button>
           </Typography>

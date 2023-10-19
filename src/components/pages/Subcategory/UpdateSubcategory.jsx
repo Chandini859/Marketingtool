@@ -1,54 +1,43 @@
-import CloseIcon from "@mui/icons-material/Close";
-import { Box, Button, MenuItem, Typography } from "@mui/material";
-import Grid from "@mui/material/Grid";
-import IconButton from "@mui/material/IconButton";
-import TextField from "@mui/material/TextField";
-import axios from "axios";
-import React, { useEffect, useState } from "react";
-import Swal from "sweetalert2";
-import { useAppStore } from "../../appStore";
+import CloseIcon from '@mui/icons-material/Close';
+import { Box, Button, Grid, IconButton, MenuItem, TextField, Typography } from '@mui/material';
+import axios from 'axios';
+import React, { useEffect, useState } from 'react';
+import Swal from 'sweetalert2';
+
+import { useAppStore } from '../../appStore';
 
 export default function UpdateSubcategory({ subcategoryId, closeEvent }) {
-  const [subcategoryName, setSubcategoryName] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [description, setDescription] = useState("");
+  const [subcategoryName, setSubcategoryName] = useState('');
+  const [categoryId, setCategoryId] = useState(null);
+  const [description, setDescription] = useState('');
   const [categories, setCategories] = useState([]);
-  const [initialData, setInitialData] = useState({}); 
-  const setRows = useAppStore((state) => state.setRows);
+  
   const rows = useAppStore((state) => state.rows);
-
-  useEffect(() => {
-    if (subcategoryId) {
-      axios
-        .get(`http://localhost:8080/subcategory/${subcategoryId}`)
-        .then((res) => {
-          const { subcategoryName, categoryMaster, description } = res.data;
-          setInitialData({
-            subcategoryName,
-            categoryId: categoryMaster.categoryId,
-            description,
-          });
-        })
-        .catch((error) => console.log(error));
-    }
-  }, [subcategoryId]);
+  const setRows = useAppStore((state) => state.setRows);
 
   useEffect(() => {
     axios
-      .get("http://localhost:8080/categories")
+      .get('http://localhost:8080/categories')
       .then((res) => {
         setCategories(res.data);
       })
       .catch((error) => {
         console.error(error);
       });
-  }, []);
 
-  useEffect(() => {
-    setSubcategoryName(initialData.subcategoryName || "");
-    setCategoryId(initialData.categoryId || "");
-    setDescription(initialData.description || "");
-  }, [initialData]);
+    axios
+      .get(`http://localhost:8080/subcategory/${subcategoryId}`)
+      .then((res) => {
+        const subcategoryData = res.data;
+        setSubcategoryName(subcategoryData.subcategoryName);
+        setCategoryId(subcategoryData.categoryMaster.categoryId);
+        setDescription(subcategoryData.description);
+      })
+      .catch((error) => {
+        console.error(error);
+        // Handle error state for subcategory data fetch
+      });
+  }, [subcategoryId]);
 
   const handleSubcategoryNameChange = (event) => {
     setSubcategoryName(event.target.value);
@@ -65,23 +54,20 @@ export default function UpdateSubcategory({ subcategoryId, closeEvent }) {
   const handleSubmit = (event) => {
     event.preventDefault();
     const inputData = {
-      subcategoryId,
       subcategoryName,
-      categoryMaster: {
-        categoryId,
-      },
+      categoryMaster: { categoryId },
       description,
     };
+
     axios
-      .put("http://localhost:8080/subcategory", inputData)
+      .put(`http://localhost:8080/subcategory`, inputData)
       .then((res) => {
-        Swal.fire("Data Updated Successfully!");
+        Swal.fire('Updated!', 'The subcategory has been updated.', 'success');
         const updatedRows = rows.map((row) => {
           if (row.subcategoryId === subcategoryId) {
             return {
               ...row,
               subcategoryName,
-              categoryId,
               description,
             };
           }
@@ -89,10 +75,10 @@ export default function UpdateSubcategory({ subcategoryId, closeEvent }) {
         });
         setRows(updatedRows);
         closeEvent();
+        // Logic to update the rows in the parent component's state if needed
       })
       .catch((error) => {
         console.error(error);
-        // Handle the error appropriately
       });
   };
 
@@ -102,34 +88,20 @@ export default function UpdateSubcategory({ subcategoryId, closeEvent }) {
       <Typography variant="h5" align="center">
         Update Subcategory
       </Typography>
-      <IconButton
-        style={{ position: "absolute", top: "0", right: "0" }}
-        onClick={closeEvent}
-      >
+      <IconButton style={{ position: 'absolute', top: 0, right: 0 }} onClick={closeEvent}>
         <CloseIcon />
       </IconButton>
       <Box height={20} />
       <Grid container spacing={2}>
         <Grid item xs={12}>
           <TextField
-            id="subcategoryName"
-            label="Subcategory Name"
-            variant="outlined"
-            size="small"
-            value={subcategoryName}
-            onChange={handleSubcategoryNameChange}
-            sx={{ minWidth: "100%" }}
-          />
-        </Grid>
-        <Grid item xs={12}>
-          <TextField
             id="categoryId"
             label="Category Name"
             variant="outlined"
             size="small"
-            value={categoryId || ""}
+            value={categoryId || ''}
             onChange={handleCategoryIdChange}
-            sx={{ minWidth: "100%" }}
+            sx={{ minWidth: '100%' }}
             select
           >
             {categories.map((category) => (
@@ -141,13 +113,25 @@ export default function UpdateSubcategory({ subcategoryId, closeEvent }) {
         </Grid>
         <Grid item xs={12}>
           <TextField
+            id="subcategoryId"
+            label="Subcategory Name"
+            variant="outlined"
+            size="small"
+            value={subcategoryName}
+            onChange={handleSubcategoryNameChange}
+            sx={{ mb: 1, fontSize: '1rem' }}
+            fullWidth
+          />
+        </Grid>
+        <Grid item xs={12}>
+          <TextField
             id="description"
             label="Description"
             variant="outlined"
             size="small"
             value={description}
             onChange={handleDescriptionChange}
-            sx={{ minWidth: "100%" }}
+            sx={{ minWidth: '100%' }}
           />
         </Grid>
         <Grid item xs={12}>

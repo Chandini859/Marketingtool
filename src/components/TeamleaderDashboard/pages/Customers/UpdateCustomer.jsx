@@ -1,42 +1,29 @@
 import CloseIcon from "@mui/icons-material/Close";
-import { Box, Button, Typography } from '@mui/material';
+import { Box, Button, MenuItem, Typography } from "@mui/material";
 import Grid from "@mui/material/Grid";
 import IconButton from "@mui/material/IconButton";
 import TextField from "@mui/material/TextField";
-import axios from 'axios';
-import React, { useEffect, useState } from 'react';
-import Swal from 'sweetalert2';
+import axios from "axios";
+import React, { useEffect, useState } from "react";
+import Swal from "sweetalert2";
 import { useAppStore } from "../../../appStore";
 
 export default function UpdateCustomer({ customerId, closeEvent }) {
   const [customerName, setCustomerName] = useState("");
+  const [organization, setOrganization] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
   const [phoneNumber, setPhoneNumber] = useState("");
   const [address, setAddress] = useState("");
-  const [subcategory, setSubcategory] = useState("");
-  const [action, setAction] = useState("");
+  const [categoryId, setCategoryId] = useState("");
   const rows = useAppStore((state) => state.rows);
   const setRows = useAppStore((state) => state.setRows);
 
-  useEffect(() => {
-    if (customerId) {
-      axios
-        .get(`http://localhost:8080/customers/${customerId}`)
-        .then((res) => {
-          const { customerName, mobileNumber, phoneNumber, address, subcategory, action } = res.data;
-          setCustomerName(customerName);
-          setMobileNumber(mobileNumber);
-          setPhoneNumber(phoneNumber);
-          setAddress(address);
-          setSubcategory(subcategory && subcategory.subcategoryName); // Get the subcategoryName property
-          setAction(action);
-        })
-        .catch((err) => console.log(err));
-    }
-  }, [customerId]);
-
   const handleCustomerNameChange = (event) => {
     setCustomerName(event.target.value);
+  };
+
+  const handleOrganizationChange = (event) => {
+    setOrganization(event.target.value);
   };
 
   const handlePhoneNumberChange = (event) => {
@@ -51,34 +38,40 @@ export default function UpdateCustomer({ customerId, closeEvent }) {
     setAddress(event.target.value);
   };
 
-  const handleSubcategoryChange = (event) => {
-    setSubcategory(event.target.value);
+  const handleCategoryChange = (event) => {
+    const { value } = event.target;
+    setCategoryId(value);
   };
 
-  const handleSubmit = (event) => {
-    event.preventDefault();
+  const handleSubmit = () => {
     const inputData = {
       customerId,
       customerName,
+      organization,
       mobileNumber,
       phoneNumber,
       address,
-      subcategory
+      categoryId,
+      categoryMaster: {
+        categoryId,
+      },
     };
+
     axios
       .put("http://localhost:8080/customers", inputData)
       .then((res) => {
-        Swal.fire("Data Updated Successfully!");
+        Swal.fire("Updated!", "Your data has been updated.", "success");
         const updatedRows = rows.map((row) => {
           if (row.customerId === customerId) {
             return {
               ...row,
               customerName,
+              organization,
               mobileNumber,
               phoneNumber,
               address,
-              subcategory,
-              action
+              categoryId,
+              subcategory: null,
             };
           }
           return row;
@@ -88,9 +81,45 @@ export default function UpdateCustomer({ customerId, closeEvent }) {
       })
       .catch((error) => {
         console.error(error);
-        Swal.fire('Error!', 'Failed to update the details.', 'error');
       });
   };
+
+  useEffect(() => {
+    if (customerId) {
+      axios
+        .get(`http://localhost:8080/customers/${customerId}`)
+        .then((res) => {
+          const {
+            customerName,
+            organization,
+            mobileNumber,
+            phoneNumber,
+            address,
+            categoryId,
+          } = res.data;
+          setCustomerName(customerName);
+          setOrganization(organization);
+          setMobileNumber(mobileNumber);
+          setPhoneNumber(phoneNumber);
+          setAddress(address);
+          setCategoryId(categoryId);
+        })
+        .catch((err) => console.log(err));
+    }
+  }, [customerId]);
+
+  const [categories, setCategories] = useState([]);
+
+  useEffect(() => {
+    axios
+      .get("http://localhost:8080/categories")
+      .then((res) => {
+        setCategories(res.data);
+      })
+      .catch((error) => {
+        console.error(error);
+      });
+  }, []);
 
   return (
     <>
@@ -106,20 +135,25 @@ export default function UpdateCustomer({ customerId, closeEvent }) {
       </IconButton>
       <Box height={20} />
       <Grid container spacing={2}>
+        {/* ... Other Grid items ... */}
         <Grid item xs={12}>
-          <TextField id="outlined-basic" label="Customer Name" variant="outlined" size="small" value={customerName} onChange={handleCustomerNameChange} sx={{ minWidth: "100%" }} />
-        </Grid>
-        <Grid item xs={12}>
-          <TextField id="outlined-basic" label="Mobile Number" variant="outlined" size="small" value={mobileNumber} onChange={handleMobileNumberChange} sx={{ minWidth: "100%" }} />
-        </Grid>
-        <Grid item xs={12}>
-          <TextField id="outlined-basic" label="Phone Number" variant="outlined" size="small" value={phoneNumber} onChange={handlePhoneNumberChange} sx={{ minWidth: "100%" }} />
-        </Grid>
-        <Grid item xs={12}>
-          <TextField id="outlined-basic" label="Address" variant="outlined" size="small" value={address} onChange={handleAddressChange} sx={{ minWidth: "100%" }} />
-        </Grid>
-        <Grid item xs={12}>
-          <TextField id="outlined-basic" label="Subcategory" variant="outlined" size="small" value={subcategory} onChange={handleSubcategoryChange} sx={{ minWidth: "100%" }} />
+          <TextField
+            id="categoryId"
+            label="Category Name"
+            variant="outlined"
+            size="small"
+            value={categoryId}
+            onChange={handleCategoryChange}
+            sx={{ mb: 1, fontSize: "1rem" }}
+            fullWidth
+            select
+          >
+            {categories.map((category) => (
+              <MenuItem key={category.categoryId} value={category.categoryId}>
+                {category.categoryName}
+              </MenuItem>
+            ))}
+          </TextField>
         </Grid>
         <Grid item xs={12}>
           <Typography variant="h5" align="center">
